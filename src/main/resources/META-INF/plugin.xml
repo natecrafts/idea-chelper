@@ -1,8 +1,8 @@
 <idea-plugin>
+    <id>com.natecrafts.chelper</id>
     <name>CHelper</name>
     <description>Inlines library code and provides testing framework</description>
-    <vendor>Nathan Nguyen</vendor>
-    <idea-version since-build="139.0"/>
+    <vendor>Nhat Nguyen</vendor>
 
     <depends>com.intellij.modules.java</depends>
 
