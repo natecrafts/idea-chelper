@@ -1,11 +1,14 @@
 package net.egork.chelper.ui;
 
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.ui.VerticalFlowLayout;
 import com.intellij.ui.components.JBList;
 import com.intellij.ui.components.JBScrollPane;
 import net.egork.chelper.task.Test;
-import net.egork.chelper.util.Utilities;
+import com.intellij.util.ui.JBUI;
+import org.jetbrains.annotations.NonNls;
+import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
@@ -16,14 +19,14 @@ import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 /**
  * @author Egor Kulikov (kulikov@devexperts.com)
  */
-public class EditTestsDialog extends JDialog {
+public class EditTestsDialog extends DialogWrapper {
     private static int HEIGHT = new JLabel("Test").getPreferredSize().height;
+    private static String TITLE = "Tests";
 
     private List<Test> tests;
     private int currentTest;
@@ -37,11 +40,16 @@ public class EditTestsDialog extends JDialog {
     private boolean updating = false;
 
     public EditTestsDialog(Test[] tests, Project project) {
-        super(null, "Tests", ModalityType.APPLICATION_MODAL);
-        setIconImage(Utilities.iconToImage(CHelperIcons.EDIT_TESTS));
-        setAlwaysOnTop(true);
-        setResizable(false);
-        this.tests = new ArrayList<Test>(Arrays.asList(tests));
+        // Set canBeParent = true to allow this dialog to be a parent of other model dialogs.
+        super(project, true);
+        this.tests = new ArrayList<>(List.of(tests));
+        setTitle(TITLE);
+        setOKButtonText("Save");
+        init(); // This calls createCenterPanel()
+    }
+
+    @Override
+    protected @Nullable JComponent createCenterPanel() {
         VariableGridLayout mainLayout = new VariableGridLayout(1, 2, 5, 5);
         mainLayout.setColFraction(0, 0.35);
         mainLayout.setColFraction(1, 0.65);
@@ -55,7 +63,7 @@ public class EditTestsDialog extends JDialog {
             checkBoxesPanel.add(checkBox);
         }
         checkBoxesAndSelectorPanel.add(checkBoxesPanel, BorderLayout.WEST);
-        testList = new JBList((Object[]) tests);
+        testList = new JBList(this.tests.toArray());
         testList.setFixedCellHeight(HEIGHT);
         testList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         testList.setLayoutOrientation(JList.VERTICAL);
@@ -84,7 +92,9 @@ public class EditTestsDialog extends JDialog {
         checkBoxesAndSelectorPanel.add(testList, BorderLayout.CENTER);
         selectorAndButtonsPanel.add(new JBScrollPane(checkBoxesAndSelectorPanel,
                 JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER), BorderLayout.CENTER);
-        JPanel buttonsPanel = new JPanel(new GridLayout(3, 1));
+        // The 2-row container for the test-list action buttons.
+        // Row 1: All/None, row 2: New/Remove.
+        JPanel buttonsPanel = new JPanel(new GridLayout(2, 1));
         JPanel upperButtonsPanel = new JPanel(new GridLayout(1, 2));
         JButton all = new JButton("All");
         all.addActionListener(new ActionListener() {
@@ -157,14 +167,6 @@ public class EditTestsDialog extends JDialog {
         });
         middleButtonsPanel.add(remove);
         buttonsPanel.add(middleButtonsPanel);
-        JButton save = new JButton("Save");
-        save.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) {
-                saveCurrentTest();
-                setVisible(false);
-            }
-        });
-        buttonsPanel.add(save);
         selectorAndButtonsPanel.add(buttonsPanel, BorderLayout.SOUTH);
         mainPanel.add(selectorAndButtonsPanel);
         JPanel testPanel = new JPanel(new GridLayout(2, 1, 5, 5));
@@ -205,11 +207,27 @@ public class EditTestsDialog extends JDialog {
         testPanel.add(inputPanel);
         testPanel.add(outputAndCheckBoxPanel);
         mainPanel.add(testPanel);
-        setContentPane(mainPanel);
-        setSelectedTest(Math.min(0, tests.length - 1));
-        pack();
-        setSize(600, 400);
-        setLocation(Utilities.getLocation(project, this.getSize()));
+        // Select first test if any exists, otherwise -1.
+        setSelectedTest(this.tests.isEmpty() ? -1 : 0);
+        // HiDPI-scaled default size, but user can resize freely.
+        mainPanel.setPreferredSize(JBUI.size(700, 450));
+        return mainPanel;
+    }
+
+    @Override
+    protected void doOKAction() {
+        saveCurrentTest();
+        super.doOKAction();
+    }
+
+    /**
+     * Overriding this method to return a unique key so that IntelliJ can remember the
+     * user's dialog dimensions and positions across sessions.
+     */
+    @NonNls
+    @Override
+    protected @Nullable String getDimensionServiceKey() {
+        return "net.egork.chelper.ui.EditTestsDialog";
     }
 
     private JCheckBox createCheckBox(final Test test) {
@@ -228,6 +246,19 @@ public class EditTestsDialog extends JDialog {
         return checkBox;
     }
 
+    /**
+     * Select a test given the index, or -1 when there are no tests.
+     * This method does a few things:
+     * <ul>
+     *   <li>Set updating = true so that testList's ListSelectionListener ignores
+     *   selection changes made by the plugin (rather than changes made by the
+     *   user).</li>
+     *   <li>Update the Input and Output text boxes and the "Known answer?" check box
+     *   on the right.</li>
+     *   <li> Refresh the UI of the test list on the left.</li>
+     * </ul>
+     * @param index the index of the selected test.
+     */
     private void setSelectedTest(int index) {
         updating = true;
         currentTest = -1;
@@ -265,7 +296,11 @@ public class EditTestsDialog extends JDialog {
 
     public static Test[] editTests(Test[] tests, Project project) {
         EditTestsDialog dialog = new EditTestsDialog(tests, project);
-        dialog.setVisible(true);
-        return dialog.tests.toArray(new Test[dialog.tests.size()]);
+        // showAndGet() returns true only if "Save" was clicked.
+        if (dialog.showAndGet()) {
+            return dialog.tests.toArray(new Test[0]);
+        }
+        // In other cases (Cancel/Esc/Close window), return original `tests`.
+        return tests;
     }
 }
