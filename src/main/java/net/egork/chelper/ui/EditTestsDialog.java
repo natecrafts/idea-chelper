@@ -1,10 +1,15 @@
 package net.egork.chelper.ui;
 
+import com.intellij.openapi.editor.colors.EditorColorsManager;
+import com.intellij.openapi.editor.colors.EditorFontType;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.ui.VerticalFlowLayout;
+import com.intellij.ui.components.JBCheckBox;
+import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.components.JBList;
 import com.intellij.ui.components.JBScrollPane;
+import com.intellij.ui.components.JBTextArea;
 import net.egork.chelper.task.Test;
 import com.intellij.util.ui.JBUI;
 import org.jetbrains.annotations.NonNls;
@@ -31,11 +36,11 @@ public class EditTestsDialog extends DialogWrapper {
     private List<Test> tests;
     private int currentTest;
     private JBList testList;
-    private JTextArea input;
-    private JTextArea output;
+    private JBTextArea input;
+    private JBTextArea output;
     private List<JCheckBox> checkBoxes = new ArrayList<JCheckBox>();
     private JPanel checkBoxesPanel;
-    private JCheckBox knowAnswer;
+    private JBCheckBox knowAnswer;
     private JPanel outputPanel;
     private boolean updating = false;
 
@@ -55,7 +60,7 @@ public class EditTestsDialog extends DialogWrapper {
         mainLayout.setColFraction(1, 0.65);
         JPanel mainPanel = new JPanel(mainLayout);
         JPanel selectorAndButtonsPanel = new JPanel(new BorderLayout());
-        selectorAndButtonsPanel.add(new JLabel("Tests:"), BorderLayout.NORTH);
+        selectorAndButtonsPanel.add(new JBLabel("Tests:"), BorderLayout.NORTH);
         JPanel checkBoxesAndSelectorPanel = new JPanel(new BorderLayout());
         checkBoxesPanel = new JPanel(new VerticalFlowLayout(VerticalFlowLayout.TOP, 0, 0, false, false));
         for (Test test : tests) {
@@ -170,8 +175,12 @@ public class EditTestsDialog extends DialogWrapper {
         selectorAndButtonsPanel.add(buttonsPanel, BorderLayout.SOUTH);
         mainPanel.add(selectorAndButtonsPanel);
         JPanel testPanel = new JPanel(new GridLayout(2, 1, 5, 5));
-        JPanel inputPanel = new JPanel(new BorderLayout());
-        inputPanel.add(new JLabel("Input:"), BorderLayout.NORTH);
+
+        // Input and Output text areas.
+        // Respect the user's configured Editor font face, font size, and zoom
+        Font editorFont = EditorColorsManager.getInstance().getGlobalScheme()
+                .getFont(EditorFontType.PLAIN);
+
         DocumentListener listener = new DocumentListener() {
             public void insertUpdate(DocumentEvent e) {
                 saveCurrentTest();
@@ -185,17 +194,21 @@ public class EditTestsDialog extends DialogWrapper {
                 saveCurrentTest();
             }
         };
-        input = new JTextArea();
-        input.setFont(Font.decode(Font.MONOSPACED));
+
+        JPanel inputPanel = new JPanel(new BorderLayout());
+        inputPanel.add(new JBLabel("Input:"), BorderLayout.NORTH);
+        input = new JBTextArea();
+        input.setFont(editorFont);
         input.getDocument().addDocumentListener(listener);
         inputPanel.add(new JBScrollPane(input), BorderLayout.CENTER);
+
         outputPanel = new JPanel(new BorderLayout());
-        outputPanel.add(new JLabel("Output:"), BorderLayout.NORTH);
-        output = new JTextArea();
-        output.setFont(Font.decode(Font.MONOSPACED));
+        outputPanel.add(new JBLabel("Output:"), BorderLayout.NORTH);
+        output = new JBTextArea();
+        output.setFont(editorFont);
         output.getDocument().addDocumentListener(listener);
         outputPanel.add(new JBScrollPane(output), BorderLayout.CENTER);
-        knowAnswer = new JCheckBox("Know answer?");
+        knowAnswer = new JBCheckBox("Know answer?");
         knowAnswer.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
                 saveCurrentTest();
