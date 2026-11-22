@@ -5,6 +5,7 @@ import com.intellij.openapi.editor.colors.EditorFontType;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.ui.VerticalFlowLayout;
+import com.intellij.ui.JBSplitter;
 import com.intellij.ui.components.JBCheckBox;
 import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.components.JBList;
@@ -55,10 +56,6 @@ public class EditTestsDialog extends DialogWrapper {
 
     @Override
     protected @Nullable JComponent createCenterPanel() {
-        VariableGridLayout mainLayout = new VariableGridLayout(1, 2, 5, 5);
-        mainLayout.setColFraction(0, 0.35);
-        mainLayout.setColFraction(1, 0.65);
-        JPanel mainPanel = new JPanel(mainLayout);
         JPanel selectorAndButtonsPanel = new JPanel(new BorderLayout());
         selectorAndButtonsPanel.add(new JBLabel("Tests:"), BorderLayout.NORTH);
         JPanel checkBoxesAndSelectorPanel = new JPanel(new BorderLayout());
@@ -173,8 +170,6 @@ public class EditTestsDialog extends DialogWrapper {
         middleButtonsPanel.add(remove);
         buttonsPanel.add(middleButtonsPanel);
         selectorAndButtonsPanel.add(buttonsPanel, BorderLayout.SOUTH);
-        mainPanel.add(selectorAndButtonsPanel);
-        JPanel testPanel = new JPanel(new GridLayout(2, 1, 5, 5));
 
         // Input and Output text areas.
         // Respect the user's configured Editor font face, font size, and zoom
@@ -217,14 +212,30 @@ public class EditTestsDialog extends DialogWrapper {
         JPanel outputAndCheckBoxPanel = new JPanel(new BorderLayout());
         outputAndCheckBoxPanel.add(knowAnswer, BorderLayout.NORTH);
         outputAndCheckBoxPanel.add(outputPanel, BorderLayout.CENTER);
-        testPanel.add(inputPanel);
-        testPanel.add(outputAndCheckBoxPanel);
-        mainPanel.add(testPanel);
+
+        // Vertical splitter.
+        // - Vertical: true.
+        // - Default vertical ratio: 50% top (input), 50% bottom (output).
+        JBSplitter testSplitter = new JBSplitter(true, 0.5f);
+        // Set a key for IntelliJ to remember last user's split preference.
+        testSplitter.setSplitterProportionKey("net.egork.chelper.ui.EditTestsDialog.testSplitter");
+        testSplitter.setFirstComponent(inputPanel);
+        testSplitter.setSecondComponent(outputAndCheckBoxPanel);
+
+        // Horizontal splitter.
+        // - Vertical: false
+        // - Default split ratio: 35% left (test list), 65% right (input/output).
+        JBSplitter mainSplitter = new JBSplitter(false, 0.35f);
+        // Set a key for IntelliJ to remember last user's split preference.
+        mainSplitter.setSplitterProportionKey("net.egork.chelper.ui.EditTestsDialog.mainSplitter");
+        mainSplitter.setFirstComponent(selectorAndButtonsPanel);
+        mainSplitter.setSecondComponent(testSplitter);
+
         // Select first test if any exists, otherwise -1.
         setSelectedTest(this.tests.isEmpty() ? -1 : 0);
         // HiDPI-scaled default size, but user can resize freely.
-        mainPanel.setPreferredSize(JBUI.size(700, 450));
-        return mainPanel;
+        mainSplitter.setPreferredSize(JBUI.size(700, 450));
+        return mainSplitter;
     }
 
     @Override
