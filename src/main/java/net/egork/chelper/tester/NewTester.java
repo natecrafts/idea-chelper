@@ -15,6 +15,7 @@ import net.egork.chelper.util.OutputWriter;
 import java.io.*;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 /**
@@ -219,8 +220,12 @@ public class NewTester {
 
     private static void runClassicTask(List<Verdict> verdicts, Task task, Class readerClass, Class writerClass, Class taskClass, Class checkerClass, TestType testType, boolean truncate, Test test) throws InstantiationException, IllegalAccessException, InvocationTargetException, NoSuchMethodException {
         Object in = readerClass.getConstructor(InputStream.class).newInstance(new StringInputStream(test.input));
-        StringWriter writer = new StringWriter(test.output == null ? 16 : test.output.length());
-        Object out = writerClass.getConstructor(Writer.class).newInstance(writer);
+        // The initial size of the output stream buffer.
+        // We use ByteArrayOutputStream, which by default allocates a 32-byte buffer.
+        // https://docs.oracle.com/javase/8/docs/api/java/io/ByteArrayOutputStream.html
+        int outStreamBufSize = test.output == null ? 32 : test.output.length();
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream(outStreamBufSize);
+        Object out = writerClass.getConstructor(OutputStream.class).newInstance(outputStream);
         System.out.println("Input:");
         print(test.input, truncate);
         System.out.println("Expected output:");
@@ -229,9 +234,14 @@ public class NewTester {
         long time = System.currentTimeMillis();
         try {
             run(in, out, taskClass, readerClass, writerClass, testType);
+            if (out instanceof AutoCloseable) {
+                ((AutoCloseable) out).close();
+            } else {
+                writerClass.getMethod("close").invoke(out);
+            }
             time = System.currentTimeMillis() - time;
             maximalTime = Math.max(time, maximalTime);
-            String result = writer.getBuffer().toString();
+            String result = new String(outputStream.toByteArray(), StandardCharsets.UTF_8);
             print(result, truncate);
             System.out.print("Verdict: ");
             Verdict checkResult = check(checkerClass, test.input, test.output, result, task.checkerParameters);
