@@ -4,11 +4,10 @@ import com.intellij.openapi.editor.colors.EditorColorsManager;
 import com.intellij.openapi.editor.colors.EditorFontType;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogWrapper;
-import com.intellij.openapi.ui.VerticalFlowLayout;
+import com.intellij.ui.CheckBoxList;
 import com.intellij.ui.JBSplitter;
 import com.intellij.ui.components.JBCheckBox;
 import com.intellij.ui.components.JBLabel;
-import com.intellij.ui.components.JBList;
 import com.intellij.ui.components.JBScrollPane;
 import com.intellij.ui.components.JBTextArea;
 import net.egork.chelper.task.Test;
@@ -31,16 +30,13 @@ import java.util.List;
  * @author Egor Kulikov (kulikov@devexperts.com)
  */
 public class EditTestsDialog extends DialogWrapper {
-    private static int HEIGHT = new JLabel("Test").getPreferredSize().height;
     private static String TITLE = "Tests";
 
     private List<Test> tests;
     private int currentTest;
-    private JBList testList;
+    private CheckBoxList<Test> testList;
     private JBTextArea input;
     private JBTextArea output;
-    private List<JCheckBox> checkBoxes = new ArrayList<JCheckBox>();
-    private JPanel checkBoxesPanel;
     private JBCheckBox knowAnswer;
     private JPanel outputPanel;
     private boolean updating = false;
@@ -58,24 +54,21 @@ public class EditTestsDialog extends DialogWrapper {
     protected @Nullable JComponent createCenterPanel() {
         JPanel selectorAndButtonsPanel = new JPanel(new BorderLayout());
         selectorAndButtonsPanel.add(new JBLabel("Tests:"), BorderLayout.NORTH);
-        JPanel checkBoxesAndSelectorPanel = new JPanel(new BorderLayout());
-        checkBoxesPanel = new JPanel(new VerticalFlowLayout(VerticalFlowLayout.TOP, 0, 0, false, false));
-        for (Test test : tests) {
-            JCheckBox checkBox = createCheckBox(test);
-            checkBoxesPanel.add(checkBox);
-        }
-        checkBoxesAndSelectorPanel.add(checkBoxesPanel, BorderLayout.WEST);
-        testList = new JBList(this.tests.toArray());
-        testList.setFixedCellHeight(HEIGHT);
+        // Update a test's active flag whenever its checkbox is toggled.
+        testList = new CheckBoxList<>((index, value) -> {
+            if (!updating && index >= 0 && index < tests.size()) {
+                tests.set(index, tests.get(index).setActive(value));
+            }
+        });
+        testList.getEmptyText().setText("No tests");
         testList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        testList.setLayoutOrientation(JList.VERTICAL);
         testList.addListSelectionListener(new ListSelectionListener() {
             public void valueChanged(ListSelectionEvent e) {
                 if (updating) {
                     return;
                 }
                 int index = testList.getSelectedIndex();
-                if (index >= 0 && index < testList.getItemsCount()) {
+                if (index >= 0 && index < tests.size()) {
                     saveCurrentTest();
                     setSelectedTest(index);
                 }
@@ -91,8 +84,7 @@ public class EditTestsDialog extends DialogWrapper {
 //				}
 //			}
 //		});
-        checkBoxesAndSelectorPanel.add(testList, BorderLayout.CENTER);
-        selectorAndButtonsPanel.add(new JBScrollPane(checkBoxesAndSelectorPanel,
+        selectorAndButtonsPanel.add(new JBScrollPane(testList,
                 JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER), BorderLayout.CENTER);
         // The 2-row container for the test-list action buttons.
         // Row 1: All/None, row 2: New/Remove.
@@ -101,11 +93,8 @@ public class EditTestsDialog extends DialogWrapper {
         JButton all = new JButton("All");
         all.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
-                int index = 0;
-                for (JCheckBox checkBox : checkBoxes) {
-                    checkBox.setSelected(true);
-                    EditTestsDialog.this.tests.set(index, EditTestsDialog.this.tests.get(index).setActive(true));
-                    index++;
+                for (int i = 0; i < tests.size(); i++) {
+                    tests.set(i, tests.get(i).setActive(true));
                 }
                 setSelectedTest(currentTest);
             }
@@ -114,11 +103,8 @@ public class EditTestsDialog extends DialogWrapper {
         JButton none = new JButton("None");
         none.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
-                int index = 0;
-                for (JCheckBox checkBox : checkBoxes) {
-                    checkBox.setSelected(false);
-                    EditTestsDialog.this.tests.set(index, EditTestsDialog.this.tests.get(index).setActive(false));
-                    index++;
+                for (int i = 0; i < tests.size(); i++) {
+                    tests.set(i, tests.get(i).setActive(false));
                 }
                 setSelectedTest(currentTest);
             }
@@ -133,7 +119,6 @@ public class EditTestsDialog extends DialogWrapper {
                 int index = EditTestsDialog.this.tests.size();
                 Test test = new Test("", "", index);
                 EditTestsDialog.this.tests.add(test);
-                checkBoxesPanel.add(createCheckBox(test));
                 setSelectedTest(index);
             }
         });
@@ -144,17 +129,10 @@ public class EditTestsDialog extends DialogWrapper {
                 if (currentTest == -1) {
                     return;
                 }
-                while (checkBoxes.size() > currentTest) {
-                    checkBoxesPanel.remove(checkBoxes.get(currentTest));
-                    checkBoxes.remove(currentTest);
-                }
                 EditTestsDialog.this.tests.remove(currentTest);
                 int size = EditTestsDialog.this.tests.size();
                 for (int i = currentTest; i < size; i++) {
-                    Test test = EditTestsDialog.this.tests.get(i);
-                    test = new Test(test.input, test.output, i, test.active);
-                    EditTestsDialog.this.tests.set(i, test);
-                    checkBoxesPanel.add(createCheckBox(test));
+                    EditTestsDialog.this.tests.set(i, EditTestsDialog.this.tests.get(i).setIndex(i));
                 }
                 if (currentTest < size) {
                     setSelectedTest(currentTest);
@@ -254,22 +232,6 @@ public class EditTestsDialog extends DialogWrapper {
         return "net.egork.chelper.ui.EditTestsDialog";
     }
 
-    private JCheckBox createCheckBox(final Test test) {
-        final JCheckBox checkBox = new JCheckBox("", test.active);
-        Dimension preferredSize = new Dimension(checkBox.getPreferredSize().width, HEIGHT);
-        checkBox.setPreferredSize(preferredSize);
-        checkBox.setMaximumSize(preferredSize);
-        checkBox.setMinimumSize(preferredSize);
-        checkBox.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) {
-                tests.set(test.index, tests.get(test.index).setActive(checkBox.isSelected()));
-                setSelectedTest(currentTest);
-            }
-        });
-        checkBoxes.add(checkBox);
-        return checkBox;
-    }
-
     /**
      * Select a test given the index, or -1 when there are no tests.
      * This method does a few things:
@@ -298,12 +260,13 @@ public class EditTestsDialog extends DialogWrapper {
             outputPanel.setVisible(knowAnswer.isSelected());
         }
         currentTest = index;
-        testList.setListData(tests.toArray());
-        if (testList.getSelectedIndex() != currentTest) {
+        testList.clear();
+        for (Test test : tests) {
+            testList.addItem(test, test.toString(), test.active);
+        }
+        if (currentTest >= 0 && currentTest < tests.size()) {
             testList.setSelectedIndex(currentTest);
         }
-        testList.repaint();
-        checkBoxesPanel.repaint();
         updating = false;
     }
 
@@ -312,7 +275,7 @@ public class EditTestsDialog extends DialogWrapper {
             return;
         }
         tests.set(currentTest, new Test(input.getText(), knowAnswer.isSelected() ? output.getText() : null, currentTest,
-                checkBoxes.get(currentTest).isSelected()));
+                tests.get(currentTest).active));
         outputPanel.setVisible(knowAnswer.isSelected());
 //        output.invalidate();
 //        output.repaint();
