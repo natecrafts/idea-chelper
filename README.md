@@ -17,7 +17,7 @@ Key features:
 
 ## Installation
 
-- Download the [CHelper plugin zip file from the latest release](https://github.com/nathanwn/idea-chelper/releases).
+- Download the [CHelper plugin zip file from the latest release](https://github.com/natecrafts/idea-chelper/releases).
 - In IntelliJ, `Settings > Install Plugin from Disk`, then select the zip file.
 - Restart IntelliJ.
 
